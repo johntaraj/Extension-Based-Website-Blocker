@@ -1,8 +1,5 @@
 # Extension-Based-Website-Blocker
 
-Certainly! Here's a README for your GitHub repository:
-
----
 
 # Chrome Extension Firewall Blocker
 
