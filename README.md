@@ -2,7 +2,8 @@
 
 # DEMO
 
-![webblocker](https://github.com/johntaraj/Extension-Based-Website-Blocker/assets/134852121/1a0082bd-e207-4af4-b51b-ebb9ac5ce8ce)
+
+![webblocker](https://github.com/johntaraj/Extension-Based-Website-Blocker/assets/134852121/ed679dba-b81d-4bb3-8b87-79c24d36457d)
 
 
 # Chrome Extension  Blocker
