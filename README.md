@@ -44,7 +44,7 @@ This application works in conjunction with a Chrome extension. The extension sen
 3. **Run the Flask server:**
 
     ```bash
-    python firewall_blocker.py
+    python blocker.py
     ```
 
 ## How It Works
@@ -59,7 +59,7 @@ This application works in conjunction with a Chrome extension. The extension sen
 ## Chrome Extension
 
 You need a Chrome extension that sends periodic POST requests to the `/heartbeat` endpoint of this Flask server with the status of the extension and incognito mode. 
-To use the extension, load the folder extension in chrome as developer mode, enable it, and run firewall_blocker.py
+To use the extension, load the folder extension in chrome as developer mode, enable it, and run blocker.py
 
 ## License
 
