@@ -1,7 +1,7 @@
 # Extension-Based-Website-Blocker
 
 
-# Chrome Extension Firewall Blocker
+# Chrome Extension  Blocker
 
 This project is a Flask-based application that monitors the activity of a Chrome extension and incognito mode. It ensures that the Chrome browser closes if the extension is inactive or incognito mode is disabled for more than a specified time.
 
@@ -29,7 +29,6 @@ This application works in conjunction with a Chrome extension. The extension sen
 
     ```bash
     git clone https://github.com/johntaraj/Extension-Based-Website-Blocker.git
-    cd chrome-extension-firewall-blocker
     ```
 
 2. **Install the required Python packages:**
@@ -56,7 +55,7 @@ This application works in conjunction with a Chrome extension. The extension sen
 ## Chrome Extension
 
 You need a Chrome extension that sends periodic POST requests to the `/heartbeat` endpoint of this Flask server with the status of the extension and incognito mode. 
-TO BE ADDED SOON...
+To use the extension, load the folder extension in chrome as developer mode, enable it, and run firewall_blocker.py
 
 ## License
 
