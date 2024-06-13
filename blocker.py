@@ -1,106 +1,97 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
+import psutil
+import threading
 import time
-import subprocess
 
 app = Flask(__name__)
 
-websites = ["youtube.com", "balkanweb.com"]
-extension_active = True
-incognito_mode = True
-last_heartbeat_time = None
-counter = 30
-running_counter = False
+# Initialize extension and incognito statuses
+extension_status = False
+incognito_status = False
+timer_thread_instance = None
 
-@app.route('/blocked_websites', methods=['GET'])
-def get_blocked_websites():
-    return jsonify(websites)
+# Timer reset event
+reset_event = threading.Event()
+stop_timer_event = threading.Event()
+
+def check_chrome_processes():
+    """Check if Chrome is running and return the number of processes."""
+    count = 0
+    for process in psutil.process_iter(['name']):
+        if process.info['name'] == 'chrome.exe' or process.info['name'] == 'Google Chrome':
+            count += 1
+    return count
+
+def close_chrome():
+    """Close all Chrome processes."""
+    for process in psutil.process_iter(['name']):
+        if process.info['name'] == 'chrome.exe' or process.info['name'] == 'Google Chrome':
+            process.terminate()
+            print("Chrome process terminated.")
+    stop_timer_event.set()  # Signal to stop the timer
+
+def timer_thread():
+    """Timer thread that waits for reset_event or times out to close Chrome."""
+    while True:
+        stop_timer_event.clear()
+        for i in range(30, 0, -1):
+            if stop_timer_event.is_set():
+                print("Timer stopped.")
+                return  # Exit the thread
+            if reset_event.is_set():
+                print("Timer reset.")
+                break
+            print(f"Timer: {i} seconds remaining.")
+            time.sleep(1)
+        if not stop_timer_event.is_set() and not reset_event.is_set():
+            print("Timer expired. Closing Chrome.")
+            close_chrome()
+        reset_event.clear()
 
 @app.route('/heartbeat', methods=['POST'])
 def heartbeat():
-    global extension_active, incognito_mode, last_heartbeat_time, running_counter, counter
-    data = request.get_json()
-    status = data.get('status')
-    incognito = data.get('incognito', False)
+    global extension_status, incognito_status
+    data = request.json
+    extension_status = data.get('status') == 'active'
+    incognito_status = data.get('incognito', False)
     
-    extension_active = (status == 'active')
-    incognito_mode = incognito
-    last_heartbeat_time = time.time()
-    print(f"Received heartbeat. Extension active: {extension_active}, Incognito mode: {incognito_mode}")
-    
-    if extension_active and incognito_mode:
-        running_counter = False
-        counter = 30
-    
-    return jsonify({'status': 'success'}), 200
+    print(f"Heartbeat received: Extension status = {extension_status}, Incognito status = {incognito_status}")
 
-def chrome_is_running():
-    tasks = subprocess.check_output(['tasklist'], shell=True).decode()
-    return 'chrome.exe' in tasks
+    if extension_status and incognito_status:
+        # Reset the timer if both conditions are met
+        print("Conditions met. Resetting timer.")
+        reset_event.set()
+        return jsonify({'message': 'Heartbeat received and timer reset.'}), 200
+    else:
+        print("Conditions not met. Timer will not reset.")
+        return jsonify({'message': 'Heartbeat received but conditions not met.'}), 200
 
-def close_chrome_windows():
-    subprocess.call(['taskkill', '/F', '/IM', 'chrome.exe'])
+@app.route('/blocked_websites', methods=['GET'])
+def blocked_websites():
+    # Example list of blocked websites
+    return jsonify(["youtube.com", "google.com"])
 
-def monitor_extension():
-    global extension_active, incognito_mode, last_heartbeat_time, counter, running_counter
-    
+def monitor_chrome():
+    """Monitor Chrome process and start the timer if Chrome is running."""
+    global timer_thread_instance
     while True:
-        if chrome_is_running():
-            current_time = time.time()
-
-            if last_heartbeat_time and (current_time - last_heartbeat_time > 20):
-                extension_active = False
-                incognito_mode = False
-                print("No heartbeat in 20 seconds. Resetting extension and incognito mode.")
-            
-            elif not last_heartbeat_time:
-                print("waiting 20 sec (in fact 10 just for test)")
-                time.sleep(10)
-                print("No heartbeat received yet. Extension and incognito mode are inactive.")
-                extension_active = False
-                incognito_mode = False
-
-            if not extension_active or not incognito_mode:
-                if not running_counter:
-                    running_counter = True
-                    counter = 30
-                    print(f"Starting countdown: {counter} seconds")
-                
-                while running_counter and counter > 0:
-                    time.sleep(6)
-                    counter -= 6
-                    print(f"Countdown: {counter} seconds")
-
-                    if extension_active and incognito_mode:
-                        print("Extension is active again. Stopping countdown.")
-                        running_counter = False
-                        counter = 30  # Reset the counter
-                        break
-
-                    if counter <= 0:
-                        print("Closing Chrome due to inactivity of the secure extension.")
-                        close_chrome_windows()
-                        last_heartbeat_time = None
-                        running_counter = False
-                        counter = 30  # Reset counter after action
-                        break
-            else:
-                if running_counter:
-                    print("Both extension and incognito mode are active. Resetting counter.")
-                running_counter = False
-                counter = 30  # Reset counter when conditions are met
-
+        if check_chrome_processes() > 0:
+            if timer_thread_instance is None or not timer_thread_instance.is_alive():
+                print("Chrome is running. Starting timer.")
+                timer_thread_instance = threading.Thread(target=timer_thread, daemon=True)
+                timer_thread_instance.start()
         else:
-            if running_counter:
-                print("Chrome is not running. Resetting counter.")
-            running_counter = False
-            counter = 30  # Reset counter if Chrome is not running
-
-        time.sleep(1)  # Small sleep to prevent tight loop
+            if timer_thread_instance is not None and timer_thread_instance.is_alive():
+                print("Chrome is not running. Stopping timer.")
+                stop_timer_event.set()
+                timer_thread_instance.join()
+                print("Timer stopped.")
+        time.sleep(5)
 
 if __name__ == '__main__':
-    import threading
-
-    monitor_thread = threading.Thread(target=monitor_extension, daemon=True)
+    # Start the Chrome monitor thread
+    monitor_thread = threading.Thread(target=monitor_chrome, daemon=True)
     monitor_thread.start()
-
-    app.run(port=5000, debug=True)
+    
+    # Run the Flask app
+    app.run(port=5000)
